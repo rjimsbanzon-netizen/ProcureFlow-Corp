@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "ProcureFlow Enterprise",
+  "short_name": "ProcureFlow",
+  "description": "PF Corp procurement, approvals, supplier meetings and order tracking",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f6f1",
+  "theme_color": "#22352d",
+  "lang": "en-PH",
+  "icons": [
+    {"src":"/pwa-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"/pwa-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

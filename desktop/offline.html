@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ProcureFlow — Connection Required</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f3f0e8; color: #26342d; font: 16px/1.6 system-ui, sans-serif; padding: 24px; }
+  main { max-width: 500px; background: #fffdfa; padding: 42px; border: 1px solid #e4dcd1; border-radius: 18px; box-shadow: 0 10px 32px #26342d12; }
+  h1 { margin: 0 0 10px; font-size: 27px; }
+  p { color: #606c64; margin-bottom: 24px; }
+  button { border: 0; border-radius: 9px; padding: 13px 19px; color: white; background: #a64f32; font: inherit; font-weight: 700; cursor: pointer; }
+  button:hover { background: #8f422c; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>ProcureFlow needs a connection</h1>
+    <p>The desktop app connects to your existing ProcureFlow website and Cloudflare backend. Check your internet connection, then try again.</p>
+    <button type="button" id="retry">Try again</button>
+  </main>
+  <script>
+    document.getElementById('retry').addEventListener('click', () => {
+      window.location.assign('https://rjimsbanzon-netizen.github.io/Procurement-System/');
+    });
+  </script>
+</body>
+</html>

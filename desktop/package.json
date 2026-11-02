@@ -1,0 +1,59 @@
+{
+  "name": "procureflow-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ProcureFlow Enterprise Windows desktop app",
+  "author": "PF Corp",
+  "license": "UNLICENSED",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "build:win": "electron-builder --win nsis portable --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.pfcorp.procureflow",
+    "productName": "ProcureFlow",
+    "asar": true,
+    "directories": {
+      "output": "../desktop-dist"
+    },
+    "files": [
+      "main.cjs",
+      "url-policy.cjs",
+      "offline.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../src/procureflow-mark.png",
+        "to": "procureflow-mark.png"
+      }
+    ],
+    "win": {
+      "icon": "../src/procureflow-mark.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "ProcureFlow-Setup-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "ProcureFlow-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}

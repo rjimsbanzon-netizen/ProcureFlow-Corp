@@ -1,0 +1,51 @@
+/* Scoped to Orders; the cards/table switch uses actual content width, not just viewport width.
+   This matters when ProcureFlow's desktop sidebar is expanded. */
+.pf-orders-layout { container-type: inline-size; min-width: 0; }
+.pf-orders-table-wrap { display: none; width: 100%; overflow-x: auto; }
+.pf-orders-table { min-width: 1100px; }
+.pf-orders-table th {
+  padding: 14px 12px;
+  background: #eeeae0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+.pf-orders-table td {
+  padding: 18px 12px;
+  border-top: 1px solid #e9edf1;
+  color: #334155;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.pf-orders-data-row:hover { background: #fcfaf7; }
+.pf-orders-table .pf-orders-details-row td { padding: 0; }
+.pf-order-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.pf-order-actions button { min-height: 38px; max-width: 100%; white-space: normal; text-align: center; }
+.pf-order-hint { display: block; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.pf-order-details { min-width: 0; border-radius: 8px; background: #fcfaf7; padding: 16px; }
+.pf-orders-table .pf-order-details { border-radius: 0; padding: 18px 20px; }
+.pf-orders-cards { display: grid; grid-template-columns: minmax(0,1fr); gap: 12px; padding: 12px; }
+.pf-order-card { min-width: 0; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 16px; box-shadow: 0 1px 3px rgba(15,23,42,.04); }
+.pf-order-card-meta { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px 16px; margin-top: 14px; }
+.pf-order-card-meta > div { min-width: 0; }
+.pf-order-card-meta dt { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.pf-order-card-meta dd { margin-top: 3px; color: #334155; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+@container (min-width: 730px) {
+  .pf-orders-cards { grid-template-columns: repeat(2, minmax(0,1fr)); padding: 16px; }
+}
+@container (min-width: 1100px) {
+  .pf-orders-table-wrap { display: block; }
+  .pf-orders-cards { display: none; }
+}
+@media (max-width: 379px) {
+  .pf-order-card { padding: 12px; }
+  .pf-order-card-meta { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-orders-data-row { scroll-behavior: auto; }
+}

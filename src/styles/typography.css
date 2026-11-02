@@ -1,0 +1,217 @@
+/* ProcureFlow adaptive typography — loaded after enterprise.css and responsive.css.
+   Design goal: consistent hierarchy across modules, without changing colors,
+   replacing any HTML, or overriding Font Awesome's icon families. */
+:root {
+  --pf-body-font: 'Open Sans', 'Segoe UI', Arial, sans-serif;
+  --pf-display-font: 'Manrope', 'Open Sans', 'Segoe UI', Arial, sans-serif;
+
+  /* Fluid sizes scale smoothly from compact phones to widescreen desktops. */
+  --pf-fs-xs: clamp(.75rem, .73rem + .10vw, .8125rem);
+  --pf-fs-sm: clamp(.84rem, .80rem + .16vw, .9375rem);
+  --pf-fs-base: clamp(.90rem, .86rem + .17vw, 1rem);
+  --pf-fs-lg: clamp(1.02rem, .95rem + .28vw, 1.1875rem);
+  --pf-fs-xl: clamp(1.15rem, 1.04rem + .43vw, 1.50rem);
+  --pf-fs-2xl: clamp(1.35rem, 1.19rem + .64vw, 1.875rem);
+  --pf-fs-3xl: clamp(1.65rem, 1.41rem + .99vw, 2.375rem);
+  --pf-fs-4xl: clamp(1.95rem, 1.64rem + 1.30vw, 3rem);
+  --pf-fs-5xl: clamp(2.30rem, 1.90rem + 1.55vw, 3.5rem);
+  --pf-fs-nav: clamp(.86rem, .82rem + .15vw, .96rem);
+  --pf-fs-table: clamp(.79rem, .76rem + .12vw, .875rem);
+  --pf-fs-metric: clamp(1.50rem, 1.32rem + .73vw, 2.10rem);
+}
+
+/* Respect users' browser text-size / zoom preferences; never suppress scaling. */
+body {
+  font-family: var(--pf-body-font);
+  font-size: var(--pf-fs-base);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.enterprise-shell,
+.enterprise-auth,
+[role='dialog'][aria-modal='true'] {
+  font-family: var(--pf-body-font);
+  font-size: var(--pf-fs-base);
+}
+
+/* Manrope headings retain the existing interface palette and weights. */
+.enterprise-shell :is(h1, h2, h3, h4, h5),
+.enterprise-auth :is(h1, h2, h3, h4, h5),
+[role='dialog'][aria-modal='true'] :is(h1, h2, h3, h4),
+.enterprise-sidebar .sidebar-brand-copy > div:first-child {
+  font-family: var(--pf-display-font);
+  letter-spacing: -.025em;
+  line-height: 1.27;
+  overflow-wrap: break-word;
+}
+.enterprise-shell :is(h1, h2, h3),
+.enterprise-auth :is(h1, h2, h3) {
+  font-weight: 750;
+}
+
+/* Match Tailwind's exact utility tokens, but replace hard-coded sizes with a
+   fluid scale throughout every page including React and legacy HTML views. */
+.enterprise-main .text-xs,
+.enterprise-auth .text-xs,
+.enterprise-shell .fixed.inset-0 .text-xs,
+[role='dialog'][aria-modal='true'] .text-xs { font-size: var(--pf-fs-xs); }
+.enterprise-main .text-sm,
+.enterprise-auth .text-sm,
+.enterprise-shell .fixed.inset-0 .text-sm,
+[role='dialog'][aria-modal='true'] .text-sm { font-size: var(--pf-fs-sm); }
+.enterprise-main .text-base,
+.enterprise-auth .text-base,
+.enterprise-shell .fixed.inset-0 .text-base { font-size: var(--pf-fs-base); }
+.enterprise-main .text-lg,
+.enterprise-auth .text-lg,
+.enterprise-shell .fixed.inset-0 .text-lg,
+[role='dialog'][aria-modal='true'] .text-lg { font-size: var(--pf-fs-lg); }
+.enterprise-main .text-xl,
+.enterprise-auth .text-xl,
+.enterprise-shell .fixed.inset-0 .text-xl,
+[role='dialog'][aria-modal='true'] .text-xl { font-size: var(--pf-fs-xl); }
+.enterprise-main .text-2xl,
+.enterprise-auth .text-2xl,
+.enterprise-shell .fixed.inset-0 .text-2xl { font-size: var(--pf-fs-2xl); }
+.enterprise-main .text-3xl,
+.enterprise-auth .text-3xl { font-size: var(--pf-fs-3xl); }
+.enterprise-main .text-4xl,
+.enterprise-auth .text-4xl { font-size: var(--pf-fs-4xl); }
+.enterprise-main .text-5xl { font-size: var(--pf-fs-5xl); }
+
+/* Sidebar and header are intentionally independent of page typography. */
+.enterprise-sidebar .sidebar-brand-copy > div:first-child {
+  font-size: clamp(1.23rem, 1.14rem + .38vw, 1.54rem);
+  line-height: 1.15;
+}
+.enterprise-sidebar .sidebar-brand-copy > div:last-child {
+  font-size: var(--pf-fs-sm);
+  line-height: 1.3;
+}
+.enterprise-sidebar .sidebar-section-label {
+  font-family: var(--pf-display-font);
+  font-size: clamp(.69rem, .665rem + .1vw, .77rem);
+  font-weight: 800;
+  letter-spacing: .13em;
+  line-height: 1.4;
+}
+.enterprise-sidebar .sidebar-nav-button {
+  font-size: var(--pf-fs-nav);
+  line-height: 1.4;
+  letter-spacing: -.005em;
+}
+.enterprise-shell .enterprise-header .pf-header-module .pf-module-title {
+  font-family: var(--pf-display-font);
+  font-size: clamp(1.14rem, 1.03rem + .43vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.18;
+}
+.enterprise-header .pf-header-module .pf-module-label {
+  font-size: var(--pf-fs-xs);
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.enterprise-header .pf-header-tools .text-sm { font-size: var(--pf-fs-sm); }
+.enterprise-header .pf-header-tools .text-xs { font-size: var(--pf-fs-xs); }
+
+/* Hero title is deliberately larger than ordinary card headings. */
+.enterprise-dashboard .dashboard-hero h2 {
+  font-family: var(--pf-display-font);
+  font-size: var(--pf-fs-3xl);
+  line-height: 1.18;
+  letter-spacing: -.04em;
+  text-wrap: balance;
+}
+.enterprise-dashboard .dashboard-hero p {
+  font-size: var(--pf-fs-sm);
+  line-height: 1.55;
+}
+.enterprise-dashboard .grid > .bg-white .text-2xl,
+.enterprise-dashboard .grid > .bg-white .text-3xl {
+  font-family: var(--pf-display-font);
+  font-size: var(--pf-fs-metric);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.035em;
+}
+
+/* Dense information: keep data tables legible and preserve horizontal scroll. */
+.enterprise-main table { font-size: var(--pf-fs-table); line-height: 1.5; }
+.enterprise-main table .text-xs,
+.enterprise-main table th { font-size: var(--pf-fs-xs); }
+.enterprise-main table th { font-weight: 750; letter-spacing: .035em; }
+.enterprise-main table td { font-size: var(--pf-fs-table); }
+.enterprise-main table :is(.text-sm, .text-xs) { line-height: 1.5; }
+.enterprise-main table :is(.font-bold, .font-semibold) { font-variant-numeric: tabular-nums; }
+
+/* Form labels, controls and explanations for all procurement modules. */
+.enterprise-main label,
+.enterprise-auth label,
+.enterprise-shell .fixed.inset-0 label { line-height: 1.4; }
+.enterprise-main :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+.enterprise-auth :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+.enterprise-shell .fixed.inset-0 :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+[role='dialog'][aria-modal='true'] :is(input:not([type='checkbox']):not([type='radio']), textarea) {
+  font-family: var(--pf-body-font);
+  font-size: var(--pf-fs-base);
+  line-height: 1.48;
+}
+.enterprise-main button:not(.pr-view),
+.enterprise-auth button,
+.enterprise-shell .fixed.inset-0 button,
+[role='dialog'][aria-modal='true'] button { line-height: 1.4; }
+.enterprise-main .pr-action { font-size: var(--pf-fs-xs); }
+.enterprise-auth-card h2 { font-size: var(--pf-fs-2xl); }
+
+/* Breakpoint-specific densities, complementing existing responsive layout. */
+@media (max-width: 1023px) {
+  .enterprise-sidebar .sidebar-brand-copy > div:first-child { font-size: 1.38rem; }
+  .enterprise-sidebar .sidebar-nav-button { font-size: .90rem; }
+  .enterprise-main :is(.p-8, .p-10) { padding: clamp(1rem, 2.5vw, 1.75rem); }
+  .enterprise-main :is(.p-6, .p-7) { padding: clamp(.95rem, 2vw, 1.5rem); }
+}
+@media (max-width: 767px) {
+  .enterprise-shell .enterprise-header .pf-header-module .pf-module-title {
+    font-size: clamp(.96rem, 3.65vw, 1.2rem);
+    line-height: 1.2;
+  }
+  .enterprise-main .text-xs { font-size: max(.75rem, var(--pf-fs-xs)); }
+  .enterprise-main .dashboard-hero h2 {
+    font-size: clamp(1.45rem, 6.2vw, 2.05rem);
+    line-height: 1.19;
+  }
+  .enterprise-main .dashboard-hero p { font-size: .875rem; }
+  .enterprise-main .grid > .bg-white .text-2xl { font-size: clamp(1.48rem, 6vw, 1.90rem); }
+  /* iOS Safari does not zoom into an input whose text size is at least 16px. */
+  .enterprise-main :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+  .enterprise-auth :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+  .enterprise-shell .fixed.inset-0 :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+  [role='dialog'][aria-modal='true'] :is(input:not([type='checkbox']):not([type='radio']), textarea) {
+    font-size: 16px;
+  }
+  .enterprise-main table { font-size: .82rem; }
+  .enterprise-main table :is(th, td) { line-height: 1.5; }
+  .enterprise-main .pr-action { font-size: .75rem; min-height: 36px; }
+  .pf-mobile-actions button {
+    font-family: var(--pf-body-font);
+    font-size: clamp(.68rem, 2.8vw, .78rem);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .pf-mobile-actions button.pf-mobile-active { font-weight: 750; }
+  .pf-mobile-actions button i { font-size: clamp(1.05rem, 4vw, 1.25rem); }
+  .enterprise-auth-card { padding: clamp(1.1rem, 4vw, 1.75rem); }
+}
+@media (max-width: 380px) {
+  /* Keep five quick actions visible without clipped or microscopic labels. */
+  .pf-mobile-actions button { font-size: .68rem; letter-spacing: -.015em; }
+  .pf-mobile-actions { gap: 0; }
+  .enterprise-shell .enterprise-header .pf-header-module .pf-module-title { font-size: .96rem; }
+  .enterprise-main .dashboard-hero h2 { font-size: 1.46rem; }
+  .enterprise-main .text-4xl { font-size: 1.90rem; }
+}
+@media (min-width: 1200px) {
+  .enterprise-sidebar .sidebar-nav-button { font-size: .92rem; }
+  .enterprise-main table :is(th, td) { padding-top: .9rem; padding-bottom: .9rem; }
+}

@@ -1,0 +1,127 @@
+/* Phase 1 — consistent brand / CTA / mobile polish. Loaded after the
+   existing enterprise, responsive and typography rules. */
+:root {
+  --pf-brand: #a64f32;
+  --pf-brand-hover: #873e27;
+  --pf-brand-soft: #f7eae1;
+  --pf-brand-focus: rgba(166,79,50,.2);
+}
+
+/* Active items must win against the old generic sidebar button selectors. */
+.enterprise-sidebar .sidebar-nav-button.pf-sidebar-active,
+.enterprise-sidebar nav button.pf-sidebar-active,
+.enterprise-sidebar nav button.pf-sidebar-active:hover {
+  color: #fff !important;
+  background: var(--pf-brand);
+  border-color: rgba(255,255,255,.08);
+  box-shadow: 0 3px 10px rgba(166,79,50,.18);
+  transform: none;
+}
+.enterprise-sidebar .sidebar-nav-button.pf-sidebar-active .sidebar-notification-badge {
+  background: rgba(255,255,255,.23);
+  box-shadow: none;
+}
+.enterprise-sidebar .sidebar-notification-badge { background: var(--pf-brand); }
+
+/* Shared visual contract. Class explicitly supported by all new components;
+   original utility buttons are bridged here so older HTML views match.
+   Warning/success/danger action colors remain semantically distinct. */
+.enterprise-shell :is(button.pf-primary-action,
+  button[class~="bg-sky-600"], button[class~="bg-sky-500"],
+  button[class~="bg-blue-600"], button[class~="bg-indigo-600"],
+  button[class~="bg-[#aa5638]"], button[class~="bg-[#a64f32]"]),
+.enterprise-auth :is(button.pf-primary-action,button[class~="bg-sky-600"]) {
+  background: var(--pf-brand) !important;
+  border-color: transparent;
+  color: #fff !important;
+  border-radius: .625rem;
+  font-weight: 700;
+  box-shadow: 0 2px 7px rgba(75,42,28,.11);
+  transition: background-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.enterprise-shell :is(button.pf-primary-action,
+  button[class~="bg-sky-600"], button[class~="bg-sky-500"],
+  button[class~="bg-blue-600"], button[class~="bg-indigo-600"],
+  button[class~="bg-[#aa5638]"], button[class~="bg-[#a64f32]"]):hover:not(:disabled),
+.enterprise-auth :is(button.pf-primary-action,button[class~="bg-sky-600"]):hover:not(:disabled) {
+  background: var(--pf-brand-hover) !important;
+  box-shadow: 0 5px 12px rgba(75,42,28,.15);
+}
+.enterprise-shell :is(button.pf-primary-action,
+  button[class~="bg-sky-600"], button[class~="bg-sky-500"],
+  button[class~="bg-blue-600"], button[class~="bg-indigo-600"],
+  button[class~="bg-[#aa5638]"], button[class~="bg-[#a64f32]"]):disabled { opacity: .48; cursor: not-allowed; }
+.enterprise-shell button:focus-visible,
+.enterprise-auth button:focus-visible {
+  outline: 3px solid var(--pf-brand-focus);
+  outline-offset: 2px;
+}
+
+/* Don't recolor informational state banners, but harmonize reference/link
+   accents that previously used unrelated bright blue utilities. */
+.enterprise-main :is(a, button)[class~="text-sky-600"],
+.enterprise-main :is(a, button)[class~="text-sky-700"],
+.enterprise-main :is(a, button)[class~="text-blue-600"] { color: var(--pf-brand); }
+.enterprise-auth a[class~="text-sky-600"] { color: var(--pf-brand); }
+.enterprise-shell .enterprise-main :is(input,select,textarea):focus-visible { outline-color: var(--pf-brand); }
+
+/* A stable mobile dock with safe-area spacing and count badges. */
+@media (max-width: 767px) {
+  .pf-mobile-actions {
+    min-height: 64px;
+    align-items: stretch;
+    background: #fffdf8;
+    border-top: 1px solid #e2d8c8;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom,0px));
+  }
+  .pf-mobile-actions button { position: relative; border-radius: 10px; }
+  .pf-mobile-actions button.pf-mobile-active,
+  .pf-mobile-actions button[aria-current="page"] {
+    color: var(--pf-brand); background: var(--pf-brand-soft);
+  }
+  .pf-quick-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 1.5rem; height: 1.5rem; }
+  .pf-quick-badge {
+    position: absolute;
+    top: -.45rem;
+    right: -.82rem;
+    padding: 0 .28rem;
+    min-width: 1rem;
+    height: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 99px;
+    background: var(--pf-brand);
+    box-shadow: 0 0 0 2px #fffdf8;
+    color: #fff;
+    font-size: .56rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-empty-cell { padding: 0 !important; }
+.pf-feedback-state {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  gap: .5rem;
+  padding: clamp(1.35rem, 3vw, 2.25rem);
+  background: #fffdf8;
+  border: 1px dashed #e0d7c8;
+  border-radius: .9rem;
+  max-width: 100%;
+  color: #3d463e;
+}
+.pf-empty-cell .pf-feedback-state { border: 0; border-radius: 0; }
+.pf-feedback-icon { display: grid; place-items: center; background: #f7eae1; color: var(--pf-brand); border-radius: .85rem; height: 2.7rem; width: 2.7rem; font-size: 1.1rem; }
+.pf-feedback-state h3 { margin: .15rem 0 0; font-weight: 750; color: #263329; font-size: clamp(.9rem, 1.5vw, 1.05rem); }
+.pf-feedback-state p { color: #69756d; margin: 0; max-width: 33rem; font-size: .87rem; line-height: 1.55; }
+.pf-feedback-action { margin-top: .7rem; }
+.pf-loading-spinner { width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 3px solid #e6d7cc; border-top-color: var(--pf-brand); animation: pf-loading-spin .8s linear infinite; }
+@keyframes pf-loading-spin { to {transform: rotate(360deg);} }
+@media (prefers-reduced-motion: reduce) {
+  .pf-loading-spinner { animation: none; border-color: var(--pf-brand); border-style: dashed; }
+}
