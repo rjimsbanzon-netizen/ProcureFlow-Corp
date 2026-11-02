@@ -46,6 +46,7 @@ export interface RequisitionRecord extends ProcurementRecord {
   createdAt?: string;
   remarks?: string;
   priority?: ProcurementPriority;
+  priorityName?: string;
   purchaseCategory?: PurchaseCategory;
   recurrence?: ProcurementRecurrence;
 }
@@ -65,6 +66,7 @@ export interface OrderRecord extends ProcurementRecord {
   specs?: string;
   bidId?: string;
   priority?: ProcurementPriority;
+  priorityName?: string;
   purchaseCategory?: PurchaseCategory;
   recurrence?: ProcurementRecurrence;
   type?: string;
@@ -144,4 +146,5 @@ export type Tab = 'dashboard' | 'requisitions' | 'bidding' | 'orders' | 'deliver
   | 'amendments' | 'payments' | 'suppliers' | 'audit' | 'users' | 'access_control'
   | 'notifications' | 'tracking' | 'documents' | 'pdf_generator'
   | 'bidding_deadlines' | 'bid_comparison' | 'bid_evaluation' | 'proposal_meetings'
-  | 'global_search' | 'approval_delegation' | 'contracts' | 'supplier_analytics';
+  | 'global_search' | 'approval_delegation' | 'contracts' | 'supplier_analytics'
+  | 'operations_materials';

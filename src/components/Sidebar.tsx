@@ -103,6 +103,7 @@ const employeeSections: NavSection[] = [
     items: [
       ['audit', 'Audit Logs', 'fa-clock-rotate-left'],
       ['staff_assignments', 'Staff Assignments', 'fa-user-gear'],
+      ['operations_materials', 'Company & Material Setup', 'fa-industry'],
       ['users', 'User Verification', 'fa-users-gear'],
       ['access_control', 'Access Control Matrix', 'fa-shield-halved']
     ]

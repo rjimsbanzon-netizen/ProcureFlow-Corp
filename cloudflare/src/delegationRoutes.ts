@@ -17,7 +17,10 @@ const isOrdinaryDepartment=(name:string)=>Boolean(name.trim())&&!['procurement',
 const normalizedScope=(role:string,department:unknown)=>role==='Department Head'&&typeof department==='string'&&isOrdinaryDepartment(department)&&!match(department,'Operations')?department.trim():role==='Department Head'?null:'';
 
 async function userById(env:Context,id:string):Promise<Row|null>{
- return env.DB.prepare('SELECT id,name,role,app_role,department,status,access_revoked FROM users WHERE id=?').bind(id).first<Row>();
+ return env.DB.prepare(`SELECT id,name,role,
+   CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+        THEN 'Operations Officer' ELSE app_role END AS app_role,
+   department,status,access_revoked FROM users WHERE id=?`).bind(id).first<Row>();
 }
 /** Primary account is derived from the actual D1 appointment, not from an arbitrary client-supplied user ID. */
 export async function principalFor(env:Context,role:string,department=''):Promise<Row|null>{
@@ -121,7 +124,9 @@ export async function handleDelegationRoutes(request:Request,env:Context,user:De
  // continues to be checked by its own secured workflow endpoint.
  if(path==='/delegations/effective-access'&&request.method==='GET'){
   if(!admin)return json({error:'Admin access is required.'},403,cors);
-  const accounts=(await env.DB.prepare(`SELECT id,username,name,role,app_role,department,status,access_revoked
+  const accounts=(await env.DB.prepare(`SELECT id,username,name,role,
+    CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+         THEN 'Operations Officer' ELSE app_role END AS app_role,department,status,access_revoked
     FROM users ORDER BY name COLLATE NOCASE`).all<Row>()).results;
   const appointments=(await env.DB.prepare(`SELECT a.user_id,a.step_role,a.department
     FROM finance_approvers a`).all<Row>()).results;
@@ -196,7 +201,11 @@ export async function handleDelegationRoutes(request:Request,env:Context,user:De
     ...await Promise.all(departmentAppointments.filter(dep=>!match(dep,'Operations')).map(async department=>({role:'Department Head',department,user:await principalFor(env,'Department Head',department)})))];
   const principals=admin?principalRecords:principalRecords.filter(x=>x.user?.id===user.id);
   const canRequest=admin||principals.length>0;
-  const staff=canRequest?(await env.DB.prepare("SELECT id,name,role,app_role,department,status,access_revoked FROM users WHERE status='approved' AND access_revoked=0 AND role='employee' ORDER BY name").all<Row>()).results:[];
+  const staff=canRequest?(await env.DB.prepare(`SELECT id,name,role,
+    CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+         THEN 'Operations Officer' ELSE app_role END AS app_role,
+    department,status,access_revoked FROM users
+    WHERE status='approved' AND access_revoked=0 AND role='employee' ORDER BY name`).all<Row>()).results:[];
   // Use exactly the same eligibility rule as POST /delegations. The old UI
   // independently guessed which accounts qualified and could be misleading.
   // Keep primary/department appointments authoritative and never permit

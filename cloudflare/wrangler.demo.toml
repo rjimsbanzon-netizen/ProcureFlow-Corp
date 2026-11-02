@@ -1,0 +1,19 @@
+# Isolated training workspace. Do not bind production D1 or document storage here.
+name = "procureflow-training-api"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+account_id = "9bc2e3de3eb489d0d904a8a54b9933b2"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "procureflow-db-demo"
+database_id = "425c6d17-0088-40e4-b028-d00df8bfb9c7"
+
+[[kv_namespaces]]
+binding = "DOCUMENTS"
+id = "1fbc48860d8d410da4dec1c77314461a"
+
+[vars]
+ALLOWED_ORIGIN = "https://procureflow-training-1xx.pages.dev"
+ENABLE_DEMO_PRESETS = "true"

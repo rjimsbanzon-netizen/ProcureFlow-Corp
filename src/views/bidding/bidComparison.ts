@@ -37,6 +37,7 @@ export function renderBidComparisonView() {
                                     ${emptyTableRow(7, 'No vendor bids received', 'Suppliers can submit quotations for open published stock needs. Submitted offers will appear here.', 'fa-scale-balanced')}
                                 ` : DB.bids.map(b => {
                                     const need = DB.stockNeeds.find(s => s.id === b.needId) || { title: b.needId };
+                                    const existingOrder = DB.orders.find(order => order.prId === need.prId);
                                     const meeting = DB.proposalMeetings.find(m => m.bidId === b.id);
                                     const finalizeError = getAgreementFinalizationError(b.id);
                                     return `
@@ -71,6 +72,8 @@ export function renderBidComparisonView() {
                                                             <i class="fa-solid fa-calendar-plus mr-1"></i>${meeting?.status === 'Declined' ? 'Reschedule Meeting' : 'Schedule Meeting'}
                                                         </button>
                                                     ` : ''}
+                                                ` : existingOrder ? `
+                                                    <span class="block max-w-xs text-xs text-amber-800">Purchase Order ${safeBidText(existingOrder.id)} already exists for this requisition. Another supplier cannot be selected.</span>
                                                 ` : b.status === 'Submitted' && need.status === 'Published' && canCreateNeed ? `
                                                     <button data-command="selectBid" data-arg1="${b.id}" class="pf-primary-action px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-xs font-semibold">
                                                         <i class="fa-solid fa-check mr-1"></i>Select Supplier

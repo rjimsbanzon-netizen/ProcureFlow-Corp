@@ -55,7 +55,7 @@ export default function NotificationsPage() {
       <p>{getNotificationSyncStatus() === 'synced' ? 'Cloud connected · Current alerts and saved activity history sync across devices.'
         : getNotificationSyncStatus() === 'offline' ? `Cloud unavailable — using local data. ${getNotificationSyncError() || ''}`
         : getNotificationSyncStatus() === 'connecting' ? 'Connecting to Cloudflare…'
-        : 'Local demo mode · Notifications stay on this device.'}</p>
+        : 'Local mode · Notifications stay on this device.'}</p>
       <button type="button" className="rounded-md border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100" onClick={() => { void refreshNotificationsNow(); }}>Refresh cloud alerts</button>
     </div>
   </section>;

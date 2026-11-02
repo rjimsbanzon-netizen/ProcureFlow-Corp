@@ -273,7 +273,10 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
   }
   if(path==='/finance/staff'&&method==='GET') {
     if(!admin)return reply({error:'Admin only.'},403,cors);
-    const people=(await env.DB.prepare("SELECT id,name,username,app_role,department FROM users WHERE role!='guest' AND status='approved' AND access_revoked=0 ORDER BY name").all<Row>()).results;
+    const people=(await env.DB.prepare(`SELECT id,name,username,
+      CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+           THEN 'Operations Officer' ELSE app_role END AS app_role,
+      department FROM users WHERE role!='guest' AND status='approved' AND access_revoked=0 ORDER BY name`).all<Row>()).results;
     return reply({people},200,cors);
   }
   // Department directory is editable and is the single source for the Head picker.
@@ -297,7 +300,10 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
     const name=validDepartmentName(body.name);
     if(!name)return reply({error:'Use a department name of 1–80 characters without markup.'},400,cors);
     if(await knownDepartment(env,name))return reply({error:'That department already exists.'},409,cors);
-    await env.DB.prepare('INSERT INTO organization_departments(name) VALUES(?)').bind(name).run();
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO organization_departments(name) VALUES(?)').bind(name),
+      env.DB.prepare("UPDATE company_setup_state SET setup_id='custom',updated_at=datetime('now') WHERE id=1")
+    ]);
     return reply({ok:true,department:name},201,cors);
   }
   if(path==='/finance/departments'&&method==='PUT') {
@@ -321,7 +327,8 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
       env.DB.prepare("UPDATE finance_approvers SET department=?,updated_at=datetime('now') WHERE LOWER(TRIM(department))=LOWER(?)").bind(newName,oldCanonical),
       env.DB.prepare("UPDATE organization_departments SET name=?,updated_at=datetime('now') WHERE name=? COLLATE NOCASE").bind(newName,oldCanonical),
       // If the former name existed only in department_budgets, register the new name.
-      env.DB.prepare('INSERT OR IGNORE INTO organization_departments(name) VALUES(?)').bind(newName)
+      env.DB.prepare('INSERT OR IGNORE INTO organization_departments(name) VALUES(?)').bind(newName),
+      env.DB.prepare("UPDATE company_setup_state SET setup_id='custom',updated_at=datetime('now') WHERE id=1")
     ]);
     return reply({ok:true},200,cors);
   }
@@ -342,7 +349,8 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
     if(Number(budget?.allocated_cents??0)>0)return reply({error:'Set this department budget to zero before deleting it.'},409,cors);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM department_budgets WHERE LOWER(TRIM(department))=LOWER(?)').bind(canonical),
-      env.DB.prepare('DELETE FROM organization_departments WHERE name=? COLLATE NOCASE').bind(canonical)
+      env.DB.prepare('DELETE FROM organization_departments WHERE name=? COLLATE NOCASE').bind(canonical),
+      env.DB.prepare("UPDATE company_setup_state SET setup_id='custom',updated_at=datetime('now') WHERE id=1")
     ]);
     return reply({ok:true},200,cors);
   }
@@ -358,6 +366,8 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
     const target=await env.DB.prepare('SELECT id,username,username_aliases,app_role,department,status,access_revoked,role FROM users WHERE id=?').bind(body.userId).first<Row>();
     if(!target||target.role!=='employee'||target.app_role!=='Employee'||target.status!=='approved'||target.access_revoked)
       return reply({error:'Only an active regular Employee may transfer departments. Reassign a Head before moving them.'},403,cors);
+    const operationsOfficer=await env.DB.prepare('SELECT user_id FROM operations_officers WHERE user_id=?').bind(body.userId).first<Row>();
+    if(operationsOfficer)return reply({error:'Remove the Operations Officer appointment before transferring this employee.'},409,cors);
     const appointed=await env.DB.prepare('SELECT user_id FROM finance_approvers WHERE user_id=? LIMIT 1').bind(body.userId).first();
     if(appointed)return reply({error:'Remove or reassign this employee’s existing Head/Finance responsibility first.'},409,cors);
     const pendingApproval=await env.DB.prepare("SELECT pr_id FROM pr_approval_requests WHERE requested_by=? AND status='Pending' LIMIT 1")
@@ -424,15 +434,20 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
     if(!target||target.role!=='employee'||target.status!=='approved'||target.access_revoked||!same(target.department,'Operations'))
       return reply({error:'Select an approved Operations employee.'},403,cors);
     const appoint=action==='appoint';
-    const from=appoint?'Employee':'Operations Officer',to=appoint?'Operations Officer':'Employee';
-    if(target.app_role!==from)return reply({error:'The account role has changed. Refresh Staff Assignments.'},409,cors);
+    const assignment=await env.DB.prepare('SELECT user_id FROM operations_officers WHERE user_id=?').bind(userId).first<Row>();
+    if(appoint&& (target.app_role!=='Employee'||assignment))return reply({error:'The account role has changed. Refresh Staff Assignments.'},409,cors);
+    if(!appoint&&!assignment)return reply({error:'This account is not currently an Operations Officer. Refresh Staff Assignments.'},409,cors);
     if(appoint){
       const busy=await env.DB.prepare('SELECT user_id FROM finance_approvers WHERE user_id=? LIMIT 1').bind(userId).first();
       if(busy)return reply({error:'Remove the current Head/Finance appointment before appointing an Operations Officer.'},409,cors);
     }
+    const from=appoint?'Employee':'Operations Officer',to=appoint?'Operations Officer':'Employee';
     const changes=await env.DB.batch([
-      env.DB.prepare("UPDATE users SET app_role=?,updated_at=datetime('now') WHERE id=? AND app_role=? AND status='approved' AND access_revoked=0")
-        .bind(to,userId,from),
+      appoint
+        ? env.DB.prepare('INSERT INTO operations_officers(user_id,appointed_by) VALUES(?,?)')
+          .bind(userId,user.id)
+        : env.DB.prepare('DELETE FROM operations_officers WHERE user_id=?')
+          .bind(userId),
       evidenceStatement(env,user,'users',userId,appoint?'Operations Officer appointed':'Operations Officer removed',
         {name:target.name,app_role:from},{name:target.name,app_role:to})
     ]);
@@ -473,7 +488,10 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
     const finance=toCents(body.financeFrom),top=toCents(body.adminFrom),head=toCents(body.financeHeadFrom);
     if(![finance,top,head].every(Number.isSafeInteger))return reply({error:'Thresholds must be nonnegative numbers.'},400,cors);
     if(head<finance)return reply({error:'Finance Head threshold cannot be below Finance Officer threshold.'},400,cors);
-    await env.DB.prepare("INSERT INTO finance_rules(id,finance_from_cents,admin_from_cents,finance_head_from_cents) VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET finance_from_cents=excluded.finance_from_cents,admin_from_cents=excluded.admin_from_cents,finance_head_from_cents=excluded.finance_head_from_cents,updated_at=datetime('now')").bind(finance,top,head).run();
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO finance_rules(id,finance_from_cents,admin_from_cents,finance_head_from_cents) VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET finance_from_cents=excluded.finance_from_cents,admin_from_cents=excluded.admin_from_cents,finance_head_from_cents=excluded.finance_head_from_cents,updated_at=datetime('now')").bind(finance,top,head),
+      env.DB.prepare("UPDATE company_setup_state SET setup_id='custom',updated_at=datetime('now') WHERE id=1")
+    ]);
     return reply({ok:true},200,cors);
   }
   if(path==='/finance/assignments'&&method==='DELETE') {
@@ -552,7 +570,10 @@ export async function handleFinanceRoutes(request:Request,env:FinanceEnv,user:Fi
     const {data}=await snapshot(env);
     const use=usage(data,department);
     if(cents<use.committedCents+use.spentCents)return reply({error:'Allocation cannot be smaller than current committed + spent amounts.'},409,cors);
-    await env.DB.prepare("INSERT INTO department_budgets(department,allocated_cents,updated_by) VALUES(?,?,?) ON CONFLICT(department) DO UPDATE SET allocated_cents=excluded.allocated_cents,updated_by=excluded.updated_by,updated_at=datetime('now')").bind(department,cents,user.id).run();
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO department_budgets(department,allocated_cents,updated_by) VALUES(?,?,?) ON CONFLICT(department) DO UPDATE SET allocated_cents=excluded.allocated_cents,updated_by=excluded.updated_by,updated_at=datetime('now')").bind(department,cents,user.id),
+      env.DB.prepare("UPDATE company_setup_state SET setup_id='custom',updated_at=datetime('now') WHERE id=1")
+    ]);
     return reply({ok:true},200,cors);
   }
   if(path==='/finance/approvals'&&method==='GET') {
@@ -953,7 +974,7 @@ export async function validateFinanceSnapshotWrite(env:FinanceEnv, incoming:Reco
   // Once a PR enters D1 approvals, its pending details must not be silently
   // changed, removed or overwritten by a stale local snapshot.
   const pendingWorkflows=(await env.DB.prepare("SELECT pr_id,department,amount_cents FROM pr_approval_requests WHERE status='Pending'").all<Row>()).results;
-  const protectedFields=['id','status','department','itemTitle','specs','quantity','unitPrice','totalCost','targetDate','remarks','requestedBy','requestedByUsername','createdAt','priority','purchaseCategory','recurrence'];
+  const protectedFields=['id','status','department','itemTitle','specs','quantity','unitPrice','totalCost','targetDate','remarks','requestedBy','requestedByUsername','createdAt','priority','priorityName','purchaseCategory','recurrence'];
   for(const approval of pendingWorkflows){
     const before=oldPrs.filter(p=>p.id===approval.pr_id);
     const after=newPrs.filter(p=>p.id===approval.pr_id);
@@ -993,14 +1014,14 @@ export async function validateFinanceSnapshotWrite(env:FinanceEnv, incoming:Reco
   for(const po of newOrders){
     const previousPo=oldOrders.find(o=>o.id===po.id);
     if(previousPo){
-      if(['priority','purchaseCategory','recurrence'].some(k=>JSON.stringify(previousPo[k]??null)!==JSON.stringify(po[k]??null)))
+      if(['priority','priorityName','purchaseCategory','recurrence'].some(k=>JSON.stringify(previousPo[k]??null)!==JSON.stringify(po[k]??null)))
         return `The procurement category, frequency and priority of PO ${po.id} are locked.`;
       continue;
     }
     if(actor.role!=='admin'&&actor.app_role!=='Procurement Head')return `Only Procurement Head/Admin may issue new POs.`;
     const pr=oldPrs.find(r=>r.id===po.prId);
     if(!pr||pr.status!=='Approved')return `PO ${po.id} requires an approved Purchase Requisition.`;
-    for(const field of ['priority','purchaseCategory','recurrence']){
+    for(const field of ['priority','priorityName','purchaseCategory','recurrence']){
       if(pr[field]!==undefined && po[field]!==pr[field])
         return `PO ${po.id} ${field} must match approved requisition ${pr.id}.`;
     }
@@ -1013,9 +1034,26 @@ export async function validateFinanceSnapshotWrite(env:FinanceEnv, incoming:Reco
   }
   // New procurement classification fields are business data, not editable
   // approval overrides. Keep them stable after submission or PO creation.
+  const priorityNameChanges=newPrs.some(pr=>{
+    const old=oldPrs.find(item=>item.id===pr.id);
+    return pr.priorityName!==undefined&&(!old||old.priority!==pr.priority||old.priorityName!==pr.priorityName);
+  });
+  const priorityConfigRow=priorityNameChanges
+    ? await env.DB.prepare('SELECT config FROM operations_material_configuration WHERE id=1').first<{config:string}>()
+    : null;
+  const configuredPriorities=priorityConfigRow
+    ? (JSON.parse(priorityConfigRow.config) as {priorities?:{code:string;name:string}[]}).priorities||[]
+    : null;
   for(const pr of newPrs){
+    const old=oldPrs.find(r=>r.id===pr.id);
     if(pr.priority!==undefined && !['A','B','C'].includes(pr.priority))
       return `Invalid procurement priority on ${pr.id}.`;
+    if(pr.priorityName!==undefined && (typeof pr.priorityName!=='string' || !pr.priorityName.trim() || pr.priorityName.length>80))
+      return `Invalid procurement priority name on ${pr.id}.`;
+    if(pr.priorityName!==undefined&&(!old||old.priority!==pr.priority||old.priorityName!==pr.priorityName)&&configuredPriorities&&
+      !configuredPriorities.some(item=>item.code===pr.priority&&item.name===pr.priorityName)){
+      return `Priority ${pr.priority} on ${pr.id} does not match the current Operations configuration. Refresh the form and retry.`;
+    }
     if(pr.purchaseCategory!==undefined && ![
       'Goods & Materials','Equipment & Capital Assets','General Services',
       'Professional & Consulting Services','Construction & Works',
@@ -1024,8 +1062,7 @@ export async function validateFinanceSnapshotWrite(env:FinanceEnv, incoming:Reco
     if(pr.recurrence!==undefined && ![
       'One-time','Weekly','Monthly','Quarterly','Annually','As-needed under contract'
     ].includes(pr.recurrence)) return `Invalid purchase frequency on ${pr.id}.`;
-    const old=oldPrs.find(r=>r.id===pr.id);
-    if(old && old.status!=='Pending' && ['priority','purchaseCategory','recurrence']
+    if(old && old.status!=='Pending' && ['priority','priorityName','purchaseCategory','recurrence']
       .some(k=>JSON.stringify(old[k]??null)!==JSON.stringify(pr[k]??null)))
       return `Classification on submitted PR ${pr.id} is locked. Request an authorized revision.`;
     if(old?.status==='Pending'&&!['Pending','Rejected'].includes(pr.status)){

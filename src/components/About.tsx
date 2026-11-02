@@ -57,7 +57,7 @@ export default function About() {
       </section>
 
       <section className="panel">
-        <h2>Demo Roles Explained</h2>
+        <h2>Example Roles Explained</h2>
         <div className="roles-table">
           <div className="role-row">
             <span className="role-badge admin">Admin</span>
@@ -95,7 +95,7 @@ export default function About() {
             <strong>React Context</strong> — Lightweight authentication state management
           </li>
           <li>
-            <strong>LocalStorage</strong> — Session persistence for demo purposes
+            <strong>LocalStorage</strong> — Session persistence for local use
           </li>
           <li>
             <strong>Pure CSS</strong> — Modern, responsive design without external UI libraries
@@ -104,7 +104,7 @@ export default function About() {
       </section>
 
       <footer className="about-footer">
-        <p>ProcureCorp Demo · Built for educational purposes · 2026</p>
+        <p>ProcureCorp · Built for educational purposes · 2026</p>
       </footer>
     </div>
   );

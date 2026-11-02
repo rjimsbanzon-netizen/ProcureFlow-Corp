@@ -9,6 +9,8 @@ import { EmptyState } from '../components/FeedbackState';
 import { ScreenPanel, StatusPill, fieldClass, peso, mainButton, secondaryButton } from '../components/CoreScreenUI';
 import type { OrderRecord } from '../types/procurement';
 import './orders-responsive.css';
+import { priorityLabel } from '../domain/procurementClassification';
+import { useCompanyMaterialConfig } from '../hooks/useCompanyMaterialConfig';
 
 type OrderActionsProps = {
   order: OrderRecord;
@@ -39,9 +41,10 @@ function OrderActions({ order, isOpen, onToggle, supplier, canDeliver, remaining
 }
 
 function OrderDetails({ order, remaining }: { order: OrderRecord; remaining: number }) {
+  const { config } = useCompanyMaterialConfig();
   const details = [
     ['Order type', order.type || 'Purchase Order'],
-    ['Priority', order.priority ? `Type ${order.priority}` : 'Not classified'],
+    ['Priority', priorityLabel(order.priority, order.priorityName || config.priorities.find(item => item.code === order.priority)?.name)],
     ['Acquisition category', order.purchaseCategory || 'Goods & Materials (legacy)'],
     ['Frequency', order.recurrence || '—'],
     ['Linked PR', order.prId || '—'],

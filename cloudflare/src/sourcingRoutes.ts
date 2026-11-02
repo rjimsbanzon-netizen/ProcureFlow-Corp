@@ -442,7 +442,7 @@ export async function handleSourcingRoutes(request:Request, env:Env, user:User, 
   }
 
   if (path==='/sourcing/accreditation' && method==='GET') {
-    if (!isSupplier(user) && !adminOrHead(user)) return fail('Supplier or procurement management access required.',403);
+    if (!isSupplier(user) && !staff(user)) return fail('Supplier or Procurement staff access required.',403);
     if (isSupplier(user)) return j({cases:[{...(await accreditationFor(env,user.id)),name:user.company_name||user.name}]},200,cors);
     const accounts=(await env.DB.prepare("SELECT id,name,company_name FROM users WHERE role='guest' AND status='approved' AND access_revoked=0 ORDER BY company_name").all<Row>()).results;
     return j({cases:await Promise.all(accounts.map(async u=>({...await accreditationFor(env,u.id),name:u.company_name||u.name})))},200,cors);
@@ -470,7 +470,7 @@ export async function handleSourcingRoutes(request:Request, env:Env, user:User, 
   if (fileMatch && (method==='GET'||method==='DELETE')) {
     const file=await env.DB.prepare('SELECT * FROM supplier_accreditation_files WHERE id=?').bind(decodeURIComponent(fileMatch[1])).first<Row>();
     if (!file) return fail('Accreditation document not found.',404);
-    if (file.supplier_user_id!==user.id && !adminOrHead(user)) return fail('Access denied.',403);
+    if (file.supplier_user_id!==user.id && !staff(user)) return fail('Access denied.',403);
     if (method==='GET') {
       const bytes=await env.DOCUMENTS.get(file.kv_key,'arrayBuffer');
       if (!bytes) return fail('Document storage object is missing.',404);

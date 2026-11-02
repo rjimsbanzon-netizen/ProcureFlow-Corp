@@ -5,8 +5,10 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "deploy:legacy": "wrangler deploy --config wrangler.legacy.toml",
+    "deploy:demo": "wrangler deploy --config wrangler.demo.toml",
     "db:create": "wrangler d1 create procureflowcorp-db",
     "db:migrate": "wrangler d1 execute procureflowcorp-db --remote --file=../src/db/schema.sql && wrangler d1 migrations apply procureflowcorp-db --remote",
+    "db:migrate:demo": "wrangler d1 execute procureflow-training-db --remote --file=../src/db/schema.sql --config wrangler.demo.toml && wrangler d1 migrations apply procureflow-training-db --remote --config wrangler.demo.toml",
     "db:migrate:local": "wrangler d1 execute procureflowcorp-db --local --file=../src/db/schema.sql && wrangler d1 migrations apply procureflowcorp-db --local"
   },
   "devDependencies": {

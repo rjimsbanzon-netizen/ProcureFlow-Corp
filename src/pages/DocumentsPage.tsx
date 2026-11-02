@@ -88,7 +88,7 @@ export default function DocumentsPage() {
       </form>
       {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-      {!CLOUD_API_BASE && <p className="text-xs text-amber-700">Files in demo mode are stored only in this browser (IndexedDB). Use Cloudflare KV + D1 for shared and secure document storage.</p>}
+      {!CLOUD_API_BASE && <p className="text-xs text-amber-700">Files in local mode are stored only in this browser (IndexedDB). Use Cloudflare KV + D1 for shared and secure document storage.</p>}
     </div>
 
     <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">

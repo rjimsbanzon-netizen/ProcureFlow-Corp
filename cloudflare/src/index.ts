@@ -12,6 +12,7 @@ import { handleOperationsRoutes } from './operationsRoutes';
 import { handleDelegationRoutes } from './delegationRoutes';
 import { handleContractRoutes } from './contractRoutes';
 import { handleSupplyChainRoutes } from './supplyChainRoutes';
+import { handleDemoScenarioRoutes } from './demoScenarioRoutes';
 import { handlePerformanceRoutes } from './performanceRoutes';
 import { handleAuditEvidenceRoutes, evidenceStatement, snapshotEvidence } from './auditEvidenceRoutes';
 
@@ -20,6 +21,7 @@ export interface Env {
   DOCUMENTS: KVNamespace;
   ALLOWED_ORIGIN?: string;
   BOOTSTRAP_SECRET?: string;
+  ENABLE_DEMO_PRESETS?: string;
   RESEND_API_KEY?: string;
   VERIFICATION_FROM_EMAIL?: string;
 }
@@ -181,7 +183,9 @@ async function authenticate(request: Request, env: Env): Promise<User | null> {
   if (!token) return null;
   const row = await env.DB.prepare(
     `SELECT users.id, users.username, users.name, users.email, users.role,
-            users.app_role, users.status, users.department, users.company_name, users.access_revoked, users.username_aliases, users.name_aliases
+            CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+                 THEN 'Operations Officer' ELSE users.app_role END AS app_role,
+            users.status, users.department, users.company_name, users.access_revoked, users.username_aliases, users.name_aliases
      FROM sessions JOIN users ON users.id = sessions.user_id
      WHERE sessions.token_hash = ? AND sessions.expires_at > ?
        AND users.status = 'approved' AND users.access_revoked = 0`
@@ -336,7 +340,9 @@ export default {
         }
         const row = await env.DB.prepare(
           `SELECT id, username, password_hash, name, email, role,
-                  app_role, status, department, company_name, access_revoked, username_aliases, name_aliases
+                  CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+                       THEN 'Operations Officer' ELSE app_role END AS app_role,
+                  status, department, company_name, access_revoked, username_aliases, name_aliases
            FROM users WHERE username = ?`
         )
           .bind(body.username.trim().toLowerCase())
@@ -465,6 +471,8 @@ export default {
       // Additive D1 finance workflows. Keep all existing auth, documents and notification routes.
       const delegationResponse = await handleDelegationRoutes(request, env, user, cors);
       if (delegationResponse) return delegationResponse;
+      const demoScenarioResponse = await handleDemoScenarioRoutes(request, env, user, cors);
+      if (demoScenarioResponse) return demoScenarioResponse;
       const supplyChainResponse = await handleSupplyChainRoutes(request, env, user, cors);
       if (supplyChainResponse) return supplyChainResponse;
       const contractResponse = await handleContractRoutes(request, env, user, cors);
@@ -594,7 +602,9 @@ export default {
       if (pathname === '/users' && request.method === 'GET') {
         if (!isAdmin(user)) return json({ error: 'Admin access required' }, 403, cors);
         const { results } = await env.DB.prepare(
-          `SELECT id, username, name, email, role, app_role, status,
+          `SELECT id, username, name, email, role,
+                  CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+                       THEN 'Operations Officer' ELSE app_role END AS app_role, status,
                   department, company_name, access_revoked, requested_position, username_aliases, name_aliases FROM users WHERE deleted_at IS NULL ORDER BY username`
         ).all();
         return json(results ?? [], 200, cors);
@@ -617,19 +627,44 @@ export default {
           return json({ error: 'Account cannot be modified' }, 404, cors);
         }
         const appRole = body.appRole as string | undefined;
+        const previousUser = await env.DB.prepare(`SELECT id, name, status,
+          CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+               THEN 'Operations Officer' ELSE app_role END AS app_role,
+          role, department, access_revoked FROM users WHERE id=?`).bind(id).first<{
+          id:string;name:string;status:string;app_role:string;role:Role;department:string;access_revoked:number;
+        }>();
+        if (!previousUser) return json({ error: 'Account not found.' }, 404, cors);
+        if (appRole === 'Operations Officer') {
+          if (previousUser.role !== 'employee' ||
+              !['Employee','Operations Officer'].includes(previousUser.app_role) ||
+              previousUser.department.trim().toLowerCase() !== 'operations') {
+            return json({ error: 'Operations Officer appointments require an employee in the Operations department.' }, 409, cors);
+          }
+          const conflicting = await env.DB.prepare('SELECT 1 AS found FROM finance_approvers WHERE user_id=? LIMIT 1')
+            .bind(id).first();
+          if (conflicting) return json({ error: 'Remove the current Head/Finance appointment before appointing an Operations Officer.' }, 409, cors);
+        }
+        const appRoleForUsers = appRole === 'Operations Officer' ? 'Employee' : appRole;
         const role: Role = appRole === 'Supplier' ? 'guest' : 'employee';
-        const previousUser = await env.DB.prepare('SELECT id, status, app_role, role, access_revoked FROM users WHERE id=?').bind(id).first();
         const now = new Date().toISOString();
-        await env.DB.batch([
+        const statements = [
           env.DB.prepare(`UPDATE users SET status = ?, app_role = COALESCE(?, app_role),
             role = CASE WHEN ? IS NULL THEN role ELSE ? END,
             access_revoked = COALESCE(?, access_revoked), updated_at = ? WHERE id = ?`)
-            .bind(body.status, appRole ?? null, appRole ?? null, role,
+            .bind(body.status, appRoleForUsers ?? null, appRoleForUsers ?? null, role,
               body.accessRevoked === undefined ? null : body.accessRevoked ? 1 : 0, now, id),
           evidenceStatement(env,user,'users',id,'Account updated',previousUser,{
             status:body.status, appRole:appRole ?? null,accessRevoked:body.accessRevoked ?? null
-          })
-        ]);
+          }),
+        ];
+        const remainsActive=body.status==='approved'&&!(body.accessRevoked??Boolean(previousUser.access_revoked));
+        if (appRole === 'Operations Officer' && remainsActive) {
+          statements.push(env.DB.prepare(`INSERT INTO operations_officers(user_id,appointed_by)
+            VALUES(?,?) ON CONFLICT(user_id) DO NOTHING`).bind(id,user.id));
+        } else if (appRole !== undefined || body.status !== 'approved' || body.accessRevoked === true) {
+          statements.push(env.DB.prepare('DELETE FROM operations_officers WHERE user_id=?').bind(id));
+        }
+        await env.DB.batch(statements);
         if (body.accessRevoked === true || body.status !== 'approved') {
           await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
         }
@@ -647,13 +682,16 @@ export default {
         // invoices, approval decisions, messages, and procurement records.
         // Historical rows continue referencing the original user ID.
         const now = new Date().toISOString();
-        const previous = await env.DB.prepare('SELECT id,username,name,app_role,status,access_revoked FROM users WHERE id=?')
+        const previous = await env.DB.prepare(`SELECT id,username,name,
+          CASE WHEN EXISTS (SELECT 1 FROM operations_officers WHERE user_id=users.id)
+               THEN 'Operations Officer' ELSE app_role END AS app_role,status,access_revoked FROM users WHERE id=?`)
           .bind(id).first();
         const results = await env.DB.batch([
           env.DB.prepare("UPDATE users SET status='rejected',access_revoked=1,deleted_at=?,updated_at=? WHERE id=? AND role!='admin' AND deleted_at IS NULL")
             .bind(now,now,id),
           env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(id),
           env.DB.prepare('DELETE FROM finance_approvers WHERE user_id=?').bind(id),
+          env.DB.prepare('DELETE FROM operations_officers WHERE user_id=?').bind(id),
           env.DB.prepare("UPDATE approval_delegations SET revoked_at=?,revoked_by=? WHERE revoked_at IS NULL AND (primary_user_id=? OR delegate_user_id=?)")
             .bind(now,user.id,id,id),
           evidenceStatement(env,user,'users',id,'Account removed (historical records retained)',previous,

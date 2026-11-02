@@ -29,6 +29,7 @@ import DeliveryDiscrepanciesPage from './pages/DeliveryDiscrepanciesPage';
 import InventoryIntegrationPage from './pages/InventoryIntegrationPage';
 import SupplierInventoryPage from './pages/SupplierInventoryPage';
 import SupplyPlanningPage from './pages/SupplyPlanningPage';
+import OperationsMaterialConfigPage from './pages/OperationsMaterialConfigPage';
 import AmendmentsPage from './pages/AmendmentsPage';
 import PaymentsPage from './pages/PaymentsPage';
 import SuppliersPage from './pages/SuppliersPage';
@@ -88,6 +89,7 @@ function CurrentPage() {
     case 'inventory': return <InventoryIntegrationPage />;
     case 'supplier_inventory': return <SupplierInventoryPage />;
     case 'supply_planning': return <SupplyPlanningPage />;
+    case 'operations_materials': return <OperationsMaterialConfigPage />;
     case 'amendments': return <AmendmentsPage />;
     case 'payments': return <PaymentsPage />;
     case 'suppliers': return <SuppliersPage />;

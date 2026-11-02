@@ -23,7 +23,7 @@ export default function Login({ onSuccess }: LoginProps) {
       if (success) {
         onSuccess();
       } else {
-        setError('Invalid username or password. Try the demo credentials below.');
+        setError('Invalid username or password. Check your account details and try again.');
       }
     } catch {
       setError('Login failed. Check connection or try again.');
@@ -90,7 +90,7 @@ export default function Login({ onSuccess }: LoginProps) {
           </p>
         ) : (
           <div className="demo-credentials">
-            <p className="demo-title">Demo Accounts</p>
+            <p className="demo-title">Local Access Accounts</p>
             <div className="demo-buttons">
               <button type="button" className="demo-btn admin" onClick={() => fillDemo('admin', 'admin123')}>
                 <span className="role-badge admin">Admin</span>

@@ -11,11 +11,13 @@ import { hasPermission } from '../domain/permissions';
 import { fieldClass, mainButton, peso, secondaryButton } from './CoreScreenUI';
 import { displayUnit, unitLabel, formatQuantity, type QuantityUnit } from '../domain/measurementUnits';
 import { SearchableMeasurementUnit } from './SearchableMeasurementUnit';
-import { PRIORITIES, PURCHASE_CATEGORIES, RECURRENCES, type ProcurementPriority, type PurchaseCategory, type ProcurementRecurrence } from '../domain/procurementClassification';
+import { PURCHASE_CATEGORIES, RECURRENCES, type ProcurementPriority, type PurchaseCategory, type ProcurementRecurrence } from '../domain/procurementClassification';
+import { useCompanyMaterialConfig } from '../hooks/useCompanyMaterialConfig';
 
 /** Requisition creation is React-managed; cloud submission still uses the existing D1 approval workflow. */
 export function RequisitionFormModal({ editId }: { editId?: string }) {
   const titleId = useId();
+  const { config: companyConfig, loading: configLoading, error: configError } = useCompanyMaterialConfig();
   const existing = editId ? DB.requisitions.find(pr => pr.id === editId) : null;
   const [priority, setPriority] = useState<ProcurementPriority>(existing?.priority || 'B');
   const [purchaseCategory, setPurchaseCategory] = useState<PurchaseCategory>(existing?.purchaseCategory || 'Goods & Materials');
@@ -47,10 +49,15 @@ export function RequisitionFormModal({ editId }: { editId?: string }) {
     if (!title.trim() || !specs.trim() || !date || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(unit) || unit < 0 || !price.trim()) {
       setError('Provide an item, specifications, valid quantity, unit price, and target date.'); return;
     }
+    if (configLoading || configError || !companyConfig.priorities.some(item => item.code === priority)) {
+      setError(configError || 'Company procurement priorities are still loading. Please wait and try again.'); return;
+    }
     setBusy(true); setError('');
     try {
+      const priorityDefinition = companyConfig.priorities.find(item => item.code === priority)!;
       const data = { itemTitle: title.trim(), specs: specs.trim(), quantity: qty, unit: unitOfMeasure, unitPrice: unit,
-        targetDate: date, remarks: remarks.trim(), priority, purchaseCategory, recurrence, totalCost: Math.round(qty * unit * 100) / 100 };
+        targetDate: date, remarks: remarks.trim(), priority, priorityName: priorityDefinition.name,
+        purchaseCategory, recurrence, totalCost: Math.round(qty * unit * 100) / 100 };
       if (existing && canEdit) {
         Object.assign(existing, data);
         logAudit('PR Updated', `Pending requisition ${existing.id} edited by its requester.`);
@@ -91,7 +98,7 @@ export function RequisitionFormModal({ editId }: { editId?: string }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-semibold text-slate-700">Procurement priority
             <select value={priority} onChange={e => setPriority(e.target.value as ProcurementPriority)} className={`${fieldClass} mt-1`} required>
-              {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              {companyConfig.priorities.map(p => <option key={p.code} value={p.code}>{p.code} · {p.name}</option>)}
             </select>
           </label>
           <label className="block text-sm font-semibold text-slate-700">Acquisition category
@@ -100,7 +107,8 @@ export function RequisitionFormModal({ editId }: { editId?: string }) {
             </select>
           </label>
         </div>
-        <p className="text-xs text-slate-500">{PRIORITIES.find(p => p.value === priority)?.detail} Priority is operational; it does not replace budget approval or the separate financial ABC inventory analysis.</p>
+        <p className="text-xs text-slate-500"><strong>{companyConfig.companyName} · Priority {priority}:</strong> {companyConfig.priorities.find(p => p.code === priority)?.description} Operations defines these company-specific material scopes. Priority does not bypass budget approval or procurement controls.</p>
+        {configError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Could not load Operations priorities: {configError}</p>}
         <label className="block text-sm font-semibold text-slate-700">Purchasing frequency
           <select className={`${fieldClass} mt-1`} value={recurrence} onChange={e => setRecurrence(e.target.value as ProcurementRecurrence)}>
             {RECURRENCES.map(r => <option key={r}>{r}</option>)}
@@ -127,7 +135,7 @@ export function RequisitionFormModal({ editId }: { editId?: string }) {
         <label className="block text-sm font-semibold text-slate-700">Remarks / justification<textarea className={`${fieldClass} mt-1`} rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Purpose for the request"/></label>
         <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Quantity: <strong>{formatQuantity(quantity, unitOfMeasure)}</strong><span className="mx-2">·</span>Estimated total: <strong className="text-slate-900">{peso(Number(quantity) * Number(price))}</strong></div>
         {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-        <footer className="flex flex-wrap justify-end gap-2 border-t pt-4"><button className={secondaryButton} type="button" disabled={busy} onClick={dismiss}>Cancel</button><button type="submit" disabled={busy} className={mainButton}>{busy ? 'Saving…' : editId ? 'Save changes' : 'Submit Requisition'}</button></footer>
+        <footer className="flex flex-wrap justify-end gap-2 border-t pt-4"><button className={secondaryButton} type="button" disabled={busy} onClick={dismiss}>Cancel</button><button type="submit" disabled={busy || configLoading || Boolean(configError)} className={mainButton}>{busy ? 'Saving…' : configLoading ? 'Loading priorities…' : editId ? 'Save changes' : 'Submit Requisition'}</button></footer>
       </form>}
     </section>
   </div>;

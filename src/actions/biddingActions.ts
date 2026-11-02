@@ -125,12 +125,38 @@ export function openReviewMeetingRescheduleModal(meetingId: string): void {
 }
 
 export function selectBid(bidId) {
+    if (!canManageBidding()) {
+        showToast('Your account does not have permission to select supplier bids. Sign in as an Admin or Procurement Head with bidding permissions.', 'error');
+        return;
+    }
+
     const bid = DB.bids.find(item => item.id === bidId);
+    if (!bid) {
+        showToast('This supplier bid could not be found. Refresh the bids list and try again.', 'error');
+        return;
+    }
+
     const need = DB.stockNeeds.find(item => item.id === bid?.needId);
+    if (!need) {
+        showToast('The procurement need linked to this supplier bid could not be found. Refresh the bids list and try again.', 'error');
+        return;
+    }
+
     const pr = DB.requisitions.find(item => item.id === need?.prId);
-    if (!canManageBidding() || !bid || !need || !pr || pr.status !== 'Approved' ||
-        need.status !== 'Published' || bid.status !== 'Submitted') {
-        showToast('This supplier proposal cannot be selected for the current procurement need.', 'error');
+    if (!pr) {
+        showToast('The requisition linked to this procurement need could not be found. Check the requisition and need records before selecting a bid.', 'error');
+        return;
+    }
+    if (pr.status !== 'Approved') {
+        showToast(`This bid cannot be selected because its requisition is "${pr.status || 'Unknown'}". The requisition must be Approved first.`, 'error');
+        return;
+    }
+    if (need.status !== 'Published') {
+        showToast(`This bid cannot be selected because its procurement need is "${need.status || 'Unknown'}". The need must be Published.`, 'error');
+        return;
+    }
+    if (bid.status !== 'Submitted') {
+        showToast(`This bid cannot be selected because its status is "${bid.status || 'Unknown'}". Only a Submitted bid can be selected.`, 'error');
         return;
     }
 

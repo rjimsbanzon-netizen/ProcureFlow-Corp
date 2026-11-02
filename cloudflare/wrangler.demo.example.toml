@@ -1,0 +1,17 @@
+# EXAMPLE ONLY — copy to wrangler.demo.toml and fill your own NEW training IDs.
+# NEVER point this file at the production D1/KV bindings in wrangler.toml.
+name = "procureflow-training-api"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "procureflow-db-demo"
+database_id = "425c6d17-0088-40e4-b028-d00df8bfb9c7"
+
+[[kv_namespaces]]
+binding = "DOCUMENTS"
+id = "1fbc48860d8d410da4dec1c77314461a"
+
+[vars]
+

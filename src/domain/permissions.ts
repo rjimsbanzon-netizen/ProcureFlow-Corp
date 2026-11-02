@@ -51,8 +51,9 @@ export function canAccessTab(tab) {
         case 'supply_planning': return !isSupplier && ['Admin','Procurement Head','Procurement Officer'].includes(getCurrentPermissionRole() || '');
         case 'invoice_matching': return true;
         case 'supplier_messages': return isSupplier || ['Admin','Procurement Head','Procurement Officer'].includes(DB.currentUser.role);
-        case 'accreditation': return isSupplier || ['Admin','Procurement Head'].includes(DB.currentUser.role);
+        case 'accreditation': return isSupplier || ['Admin','Procurement Head','Procurement Officer'].includes(DB.currentUser.role);
         case 'staff_assignments': return DB.currentUser.role === 'Admin';
+        case 'operations_materials': return !isSupplier && ['Admin','Operations Officer'].includes(DB.currentUser.role);
         case 'documents':
         case 'pdf_generator': return true;
         case 'tracking': return isSupplier ? hasPermission('view_assigned_po') : hasPermission('create_pr') || hasPermission('approve_pr') || hasPermission('view_all_po');

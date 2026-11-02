@@ -10,7 +10,7 @@ database_id = "64c0f3a9-739a-4f0f-8ed3-30b5d8624201"
 
 [[kv_namespaces]]
 binding = "DOCUMENTS"
-id = "80e178a7f9914b9ea8f6f88e93240fd5"
+id = "ae58911c4f8c47b7927b8da0ad185313"
 
 [vars]
 # ALLOWED_ORIGIN = "https://rjimsbanzon-netizen.github.io"

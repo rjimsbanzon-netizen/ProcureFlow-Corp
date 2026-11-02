@@ -1083,6 +1083,7 @@ export function attachMainEvents() {
                 quantity,
                 unit: need.unit || 'units',
                 priority: pr.priority || null,
+                priorityName: pr.priorityName || null,
                 purchaseCategory: pr.purchaseCategory || 'Goods & Materials',
                 recurrence: pr.recurrence || 'One-time',
                 unitPrice,

@@ -2,6 +2,7 @@
  * All writes use their own D1 tables; legacy procurement snapshots remain unchanged.
  */
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
+import { evidenceStatement } from './auditEvidenceRoutes';
 
 type Rec = Record<string, any>;
 type Data = { requisitions: Rec[]; orders: Rec[]; deliveries: Rec[]; payments: Rec[]; ratings: Rec[]; suppliers: Rec[] };
@@ -15,6 +16,28 @@ const isManager=(u:User) => u.role==='admin'||['Procurement Head','Procurement O
 const isStaff=(u:User) => u.role==='admin'||u.role==='employee';
 const permitted=(u:User,department:unknown) => isManager(u)||same(u.department,department);
 const financeDepartment=(s:unknown)=>['finance & accounting','finance and accounting','finance'].includes(String(s??'').trim().toLowerCase());
+const canManageMaterialConfig=(u:User)=>u.role==='admin'||u.app_role==='Operations Officer';
+const validIndustries=['electronics','bakery','cellphone','construction','garment','restaurant','custom'];
+const materialCodes=['A','B','C'];
+const companySetupIds=new Set(['electronics','bakery','cellphone','construction','garment','restaurant']);
+const cents=(value:unknown)=>{
+ const amount=Number(value);
+ return Number.isFinite(amount)&&amount>=0?Math.round(amount*100):NaN;
+};
+function departmentUsage(data:Data,department:string){
+ let committedCents=0,spentCents=0;
+ for(const pr of data.requisitions){
+  if(!same(pr.department,department)||!['Approved','In Process','Completed'].includes(String(pr.status)))continue;
+  const po=data.orders.find(order=>order.prId===pr.id);
+  if(po){
+   const amountCents=cents(po.totalCost??0);
+   if(!Number.isSafeInteger(amountCents))continue;
+   if(data.payments.some(payment=>payment.poId===po.id&&payment.status==='Paid'))spentCents+=amountCents;
+   else committedCents+=amountCents;
+  }else if(pr.status==='Approved')committedCents+=cents(pr.totalCost??0)||0;
+ }
+ return {committedCents,spentCents};
+}
 async function mayReportAcrossDepartments(env:Env,user:User){
   if(isManager(user))return true;
   if(!financeDepartment(user.department))return false;
@@ -181,6 +204,172 @@ export async function handleOperationsRoutes(request:Request,env:Env,user:User,c
   const url=new URL(request.url);const path=url.pathname;
   if(!path.startsWith('/operations/'))return null;
   if(!isStaff(user)&&user.role!=='guest')return json({error:'Not authorized.'},403,cors);
+  if(path==='/operations/company-setup'){
+    if(request.method==='GET'){
+      if(!isStaff(user))return json({error:'Staff access required.'},403,cors);
+      const row=await env.DB.prepare('SELECT setup_id,annual_budget_cents,setup_config,updated_at FROM company_setup_state WHERE id=1')
+        .first<{setup_id:string;annual_budget_cents:number;setup_config:string;updated_at:string}>();
+      return json({activeSetup:row?{
+        setupId:row.setup_id,annualBudget:Number(row.annual_budget_cents)/100,
+        setupConfig:JSON.parse(row.setup_config),updatedAt:row.updated_at
+      }:null},200,cors);
+    }
+    if(request.method==='PUT'){
+      if(user.role!=='admin')return json({error:'Only Admin can apply a complete company setup.'},403,cors);
+      const body=await request.json() as Rec;
+      const setup=body?.setup as Rec;
+      const setupId=clean(setup?.setupId,30);
+      const companyName=clean(setup?.companyName,100);
+      const industry=clean(setup?.industry,30);
+      const annualBudgetPHP=Number(setup?.annualBudgetPHP);
+      const annualBudgetCents=cents(annualBudgetPHP);
+      const priorities=Array.isArray(setup?.priorities)?setup.priorities as Rec[]:[];
+      const departments=Array.isArray(setup?.departments)?setup.departments as Rec[]:[];
+      const approvals=setup?.approvals as Rec;
+      const financeFrom=cents(approvals?.financeFrom);
+      const financeHeadFrom=cents(approvals?.financeHeadFrom);
+      const adminFrom=cents(approvals?.adminFrom);
+      const invalidPercentages=departments.reduce((total,item)=>total+(Number.isFinite(Number(item?.budgetPercent))?Number(item.budgetPercent):NaN),0);
+      const departmentNames=departments.map(item=>clean(item?.name,80).toLowerCase());
+      const validDepartment=(item:Rec)=>clean(item?.name,80).length>0&&clean(item?.purpose,300).length>=3&&
+        Number.isFinite(Number(item?.budgetPercent))&&Number(item.budgetPercent)>=0&&Number(item.budgetPercent)<=100;
+      const requiredDepartments=['operations','procurement','finance & accounting','executive'];
+      if(!companySetupIds.has(setupId)||industry!==setupId||companyName.length<2||
+        !Number.isSafeInteger(annualBudgetCents)||annualBudgetCents<=0||
+        priorities.length!==3||priorities.some((item,index)=>item?.code!==materialCodes[index]||
+          clean(item?.name,80).length<2||clean(item?.description,300).length<3)||
+        departments.length<requiredDepartments.length||departments.length>30||departments.some(item=>!validDepartment(item))||
+        new Set(departmentNames).size!==departmentNames.length||
+        requiredDepartments.some(name=>!departmentNames.includes(name))||
+        !Number.isFinite(invalidPercentages)||Math.abs(invalidPercentages-100)>0.01||
+        ![financeFrom,financeHeadFrom,adminFrom].every(Number.isSafeInteger)||financeHeadFrom<financeFrom){
+        return json({error:'The company setup is incomplete. Check the company, A/B/C priorities, unique departments, 100% budget split, annual budget, and approval thresholds.'},400,cors);
+      }
+      const [directory,budgetRows,previousConfig,previousState,previousRules,data]=await Promise.all([
+        env.DB.prepare('SELECT name FROM organization_departments ORDER BY name').all<{name:string}>(),
+        env.DB.prepare('SELECT department,allocated_cents FROM department_budgets ORDER BY department').all<{department:string;allocated_cents:number}>(),
+        env.DB.prepare('SELECT config FROM operations_material_configuration WHERE id=1').first<{config:string}>(),
+        env.DB.prepare('SELECT setup_id,annual_budget_cents,updated_at FROM company_setup_state WHERE id=1').first<{setup_id:string;annual_budget_cents:number;updated_at:string}>(),
+        env.DB.prepare('SELECT finance_from_cents,finance_head_from_cents,admin_from_cents FROM finance_rules WHERE id=1').first<Rec>(),
+        state(env)
+      ]);
+      const normalizedDepartments=departments.map(item=>({
+        name:clean(item.name,80).replace(/\s+/g,' '),
+        purpose:clean(item.purpose,300),
+        budgetPercent:Number(item.budgetPercent)
+      }));
+      let allocationsSoFar=0;
+      const allocations=normalizedDepartments.map((department,index,all)=>{
+        const existingBudget=budgetRows.results.find(row=>same(row.department,department.name));
+        const existingDirectory=directory.results.find(row=>same(row.name,department.name));
+        const name=existingBudget?.department??existingDirectory?.name??department.name;
+        const allocatedCents=index===all.length-1
+          ?annualBudgetCents-allocationsSoFar
+          :Math.round(annualBudgetCents*department.budgetPercent/100);
+        allocationsSoFar+=allocatedCents;
+        return {name,allocatedCents,percent:department.budgetPercent};
+      });
+      const invalidBudget=allocations.find(allocation=>{
+        const {committedCents,spentCents}=departmentUsage(data,allocation.name);
+        return allocation.allocatedCents<committedCents+spentCents;
+      });
+      if(invalidBudget){
+        const {committedCents,spentCents}=departmentUsage(data,invalidBudget.name);
+        return json({error:`The proposed ${invalidBudget.name} allocation is below its existing committed and spent total of ₱${((committedCents+spentCents)/100).toLocaleString('en-PH',{minimumFractionDigits:2})}. Increase the annual budget or edit the department split before applying.`},409,cors);
+      }
+      const normalizedConfig={
+        companyName,industry,activeSetupId:setupId,
+        priorities:priorities.map(item=>({code:item.code,name:clean(item.name,80),description:clean(item.description,300)}))
+      };
+      const normalizedSetup={
+        setupId,industry,companyName,priorities:normalizedConfig.priorities,
+        departments:normalizedDepartments,annualBudgetPHP,
+        approvals:{
+          financeFrom:financeFrom/100,financeHeadFrom:financeHeadFrom/100,adminFrom:adminFrom/100
+        }
+      };
+      const normalizedApprovals={
+        financeFrom:financeFrom/100,financeHeadFrom:financeHeadFrom/100,adminFrom:adminFrom/100
+      };
+      const now=new Date().toISOString();
+      const statements:D1PreparedStatement[]=[];
+      for(const allocation of allocations){
+        if(!directory.results.some(row=>same(row.name,allocation.name)))
+          statements.push(env.DB.prepare('INSERT OR IGNORE INTO organization_departments(name) VALUES(?)').bind(allocation.name));
+        statements.push(env.DB.prepare(`INSERT INTO department_budgets(department,allocated_cents,updated_by)
+          VALUES(?,?,?) ON CONFLICT(department) DO UPDATE SET allocated_cents=excluded.allocated_cents,
+          updated_by=excluded.updated_by,updated_at=datetime('now')`)
+          .bind(allocation.name,allocation.allocatedCents,user.id));
+        const before=budgetRows.results.find(row=>same(row.department,allocation.name));
+        statements.push(evidenceStatement(env,user,'department_budgets',allocation.name,'Company setup applied',
+          before?{department:before.department,allocated:Number(before.allocated_cents)/100}:null,
+          {department:allocation.name,allocated:allocation.allocatedCents/100,budgetPercent:allocation.percent}));
+      }
+      statements.push(
+        env.DB.prepare(`INSERT INTO finance_rules(id,finance_from_cents,admin_from_cents,finance_head_from_cents)
+          VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET finance_from_cents=excluded.finance_from_cents,
+          admin_from_cents=excluded.admin_from_cents,finance_head_from_cents=excluded.finance_head_from_cents,
+          updated_at=datetime('now')`).bind(financeFrom,adminFrom,financeHeadFrom),
+        env.DB.prepare(`INSERT INTO operations_material_configuration(id,config,updated_by,updated_at)
+          VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET config=excluded.config,updated_by=excluded.updated_by,
+          updated_at=excluded.updated_at`).bind(JSON.stringify(normalizedConfig),user.id,now),
+        env.DB.prepare(`INSERT INTO company_setup_state(id,setup_id,annual_budget_cents,setup_config,updated_by,updated_at)
+          VALUES(1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET setup_id=excluded.setup_id,
+          annual_budget_cents=excluded.annual_budget_cents,setup_config=excluded.setup_config,
+          updated_by=excluded.updated_by,updated_at=excluded.updated_at`)
+          .bind(setupId,annualBudgetCents,JSON.stringify(normalizedSetup),user.id,now),
+        evidenceStatement(env,user,'finance_rules','company-setup','Approval thresholds configured',
+          previousRules?{
+            financeFrom:Number(previousRules.finance_from_cents)/100,
+            financeHeadFrom:Number(previousRules.finance_head_from_cents)/100,
+            adminFrom:Number(previousRules.admin_from_cents)/100
+          }:null,normalizedApprovals),
+        evidenceStatement(env,user,'operations_material_configuration','company-profile','Company setup applied',
+          previousConfig?JSON.parse(previousConfig.config):null,normalizedConfig),
+        evidenceStatement(env,user,'company_setup_state','active-setup','Activated',
+          previousState?{setupId:previousState.setup_id,annualBudget:Number(previousState.annual_budget_cents)/100}:null,
+          {setupId,annualBudget:annualBudgetPHP,departments:allocations.length})
+      );
+      await env.DB.batch(statements);
+      const untouchedBudgets=budgetRows.results.filter(row=>!allocations.some(item=>same(item.name,row.department))).map(row=>row.department);
+      return json({ok:true,activeSetup:{setupId,annualBudget:annualBudgetPHP,updatedAt:now},untouchedBudgets},200,cors);
+    }
+    return json({error:'Method not allowed.'},405,cors);
+  }
+  if(path==='/operations/material-configuration'){
+    if(!isStaff(user))return json({error:'Staff access required.'},403,cors);
+    if(request.method==='GET'){
+      const row=await env.DB.prepare('SELECT config,updated_at FROM operations_material_configuration WHERE id=1').first<{config:string;updated_at:string}>();
+      return json({config:row?JSON.parse(row.config):null,updatedAt:row?.updated_at??null},200,cors);
+    }
+    if(request.method==='PUT'){
+      if(!canManageMaterialConfig(user))return json({error:'Only Admin or Operations can update material configuration.'},403,cors);
+      const body=await request.json() as Rec;
+      const config=body?.config as Rec;
+      const companyName=clean(config?.companyName,100);
+      const industry=clean(config?.industry,30);
+      const classes=Array.isArray(config?.priorities)?config.priorities as Rec[]:[];
+      if(companyName.length<2||!validIndustries.includes(industry)||classes.length!==3||
+        classes.some((item,index)=>item?.code!==materialCodes[index]||clean(item?.name,80).length<2||clean(item?.description,300).length<3))
+        return json({error:'Provide a company name, supported company type, and complete A/B/C material definitions.'},400,cors);
+      const normalized={companyName,industry,activeSetupId:null,priorities:classes.map(item=>({
+        code:item.code,name:clean(item.name,80),description:clean(item.description,300)
+      }))};
+      const previous=await env.DB.prepare('SELECT config FROM operations_material_configuration WHERE id=1').first<{config:string}>();
+      const now=new Date().toISOString();
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO operations_material_configuration (id,config,updated_by,updated_at) VALUES (1,?,?,?)
+          ON CONFLICT(id) DO UPDATE SET config=excluded.config,updated_by=excluded.updated_by,updated_at=excluded.updated_at`)
+          .bind(JSON.stringify(normalized),user.id,now),
+        env.DB.prepare("UPDATE company_setup_state SET setup_id='custom',updated_by=?,updated_at=? WHERE id=1")
+          .bind(user.id,now),
+        evidenceStatement(env,user,'operations_material_configuration','company-profile','Updated',
+          previous?JSON.parse(previous.config):null,normalized)
+      ]);
+      return json({ok:true,config:normalized,updatedAt:now},200,cors);
+    }
+    return json({error:'Method not allowed.'},405,cors);
+  }
   const data=await state(env);
   if(path==='/operations/reports'&&request.method==='GET'){
     if(!isStaff(user))return json({error:'Staff only.'},403,cors);
