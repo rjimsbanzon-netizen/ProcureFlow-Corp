@@ -5,8 +5,8 @@ compatibility_date = "2024-11-01"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "procureflowcorp-db"
-database_id = "64c0f3a9-739a-4f0f-8ed3-30b5d8624201"
+database_name = "procurecorp-db"
+database_id = "1dca6a5f-bc28-46c6-9ac2-8cec53f9b882"
 
 [[kv_namespaces]]
 binding = "DOCUMENTS"
